@@ -4,7 +4,7 @@ Gerador público de G-code para *plotter/CNC* a partir de **texto**, **SVG** ou 
 
 O foco deste repositório é bem direto:
 
-- entrada em texto com fonte fixa
+- entrada em texto com fonte fixa e opção single-line
 - entrada em SVG vetorial
 - entrada em imagem com vetorização no navegador
 - saída em G-code pronta para automação
@@ -13,7 +13,7 @@ O foco deste repositório é bem direto:
 
 ## O que ele faz
 
-- converte texto em vetores usando uma fonte TTF fixa
+- converte texto em vetores usando fontes TTF e uma opção single-line para escrita simples
 - converte SVG em trajetórias
 - vetoriza imagem no navegador antes de gerar G-code
 - gera G-code com comandos de caneta/servo configuráveis
@@ -55,7 +55,7 @@ Se o seu firmware usar outros comandos, basta ajustar o JSON do preset.
    - escala
    - feed/travel
    - tempo de espera do servo
-4. Se estiver usando texto, escolha a fonte no menu suspenso.
+4. Se estiver usando texto, escolha a fonte no menu suspenso. A padrão agora é a *Hershey Simplex* (linha única).
 5. Clique em **Gerar G-code**.
 6. Use **Baixar .gcode** para salvar o arquivo final.
 

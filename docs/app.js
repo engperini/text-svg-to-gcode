@@ -1,9 +1,22 @@
 const SVG_NS = 'http://www.w3.org/2000/svg';
+const HERSHEY_CAP_HEIGHT = 21;
 const FONT_PRESETS = {
-  'dejavu-sans': 'DejaVuSans.ttf',
-  'dejavu-sans-oblique': 'DejaVuSans-Oblique.ttf',
+  'hershey-simplex': {
+    label: 'Hershey Simplex',
+    kind: 'stroke',
+  },
+  'dejavu-sans': {
+    label: 'DejaVu Sans',
+    kind: 'outline',
+    fontUrl: 'DejaVuSans.ttf',
+  },
+  'dejavu-sans-oblique': {
+    label: 'DejaVu Sans Oblique',
+    kind: 'outline',
+    fontUrl: 'DejaVuSans-Oblique.ttf',
+  },
 };
-const DEFAULT_FONT_PRESET = 'dejavu-sans';
+const DEFAULT_FONT_PRESET = 'hershey-simplex';
 
 const state = {
   lastGcode: '',
@@ -217,13 +230,13 @@ function measureTextWidth(font, text, fontSize) {
   return box?.width || 0;
 }
 
-function breakLongWord(font, word, fontSize, maxWidth) {
+function breakLongWord(measureFn, word, maxWidth) {
   const chars = Array.from(word || '');
   const parts = [];
   let current = '';
   for (const ch of chars) {
     const candidate = current + ch;
-    if (current && measureTextWidth(font, candidate, fontSize) > maxWidth) {
+    if (current && measureFn(candidate) > maxWidth) {
       parts.push(current);
       current = ch;
     } else {
@@ -234,7 +247,7 @@ function breakLongWord(font, word, fontSize, maxWidth) {
   return parts.length ? parts : [''];
 }
 
-function wrapParagraph(font, paragraph, fontSize, maxWidth) {
+function wrapParagraph(measureFn, paragraph, maxWidth) {
   const words = String(paragraph || '').trim().split(/\s+/u).filter(Boolean);
   if (!words.length) return [''];
 
@@ -243,7 +256,7 @@ function wrapParagraph(font, paragraph, fontSize, maxWidth) {
 
   for (const word of words) {
     const candidate = current ? `${current} ${word}` : word;
-    if (measureTextWidth(font, candidate, fontSize) <= maxWidth) {
+    if (measureFn(candidate) <= maxWidth) {
       current = candidate;
       continue;
     }
@@ -253,10 +266,10 @@ function wrapParagraph(font, paragraph, fontSize, maxWidth) {
       current = '';
     }
 
-    if (measureTextWidth(font, word, fontSize) <= maxWidth) {
+    if (measureFn(word) <= maxWidth) {
       current = word;
     } else {
-      const pieces = breakLongWord(font, word, fontSize, maxWidth);
+      const pieces = breakLongWord(measureFn, word, maxWidth);
       if (pieces.length > 1) lines.push(...pieces.slice(0, -1));
       current = pieces[pieces.length - 1] || '';
     }
@@ -266,32 +279,107 @@ function wrapParagraph(font, paragraph, fontSize, maxWidth) {
   return lines.length ? lines : [''];
 }
 
-async function textToPolylines(text, options, box) {
-  const font = await new Promise((resolve, reject) => {
+function getFontPresetMeta(fontPreset) {
+  return FONT_PRESETS[fontPreset] || FONT_PRESETS[DEFAULT_FONT_PRESET];
+}
+
+function outlineTextToPolylines(text, options, box) {
+  return new Promise((resolve, reject) => {
     opentype.load(options.fontUrl, (err, loaded) => {
-      if (err) reject(err);
-      else resolve(loaded);
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve(loaded);
     });
+  }).then((font) => {
+    const fontSize = Number(options.fontSize) || 12;
+    const lineHeight = options.lineHeight || fontSize * 1.35;
+    const maxWidth = Math.max((box?.width || 0) - 0.5, fontSize);
+    const flattened = [];
+    const measureFn = (candidate) => measureTextWidth(font, candidate, fontSize);
+    const paragraphs = String(text || '').split(/\r?\n/);
+    let cursorY = 0;
+
+    for (const paragraph of paragraphs) {
+      const wrappedLines = wrapParagraph(measureFn, paragraph, maxWidth);
+      for (const line of wrappedLines) {
+        if (!line) {
+          cursorY += lineHeight;
+          continue;
+        }
+        const glyphPath = font.getPath(line, 0, cursorY, fontSize, { kerning: true });
+        const linePolylines = flattenOpenTypePath(glyphPath, options.flattenTolerance);
+        for (const poly of linePolylines) {
+          if (poly.length > 1) flattened.push(poly);
+        }
+        cursorY += lineHeight;
+      }
+    }
+
+    if (!flattened.length) {
+      throw new Error('O texto gerou zero trajetórias.');
+    }
+
+    if (Number(options.letterSpacing) !== 0) {
+      return flattened.map((poly) => poly.map(([x, y]) => [x + Number(options.letterSpacing), y]));
+    }
+
+    return flattened;
   });
+}
+
+function hersheyMeasureTextWidth(fontData, text, fontSize) {
+  const scale = fontSize / HERSHEY_CAP_HEIGHT;
+  let width = 0;
+  for (const ch of Array.from(String(text || ''))) {
+    const glyph = fontData?.glyphs?.[ch] || fontData?.glyphs?.[ch.toUpperCase()] || fontData?.glyphs?.['?'];
+    width += (glyph?.advance || fontSize * 0.7) * scale;
+  }
+  return width;
+}
+
+function hersheyGlyphToPolylines(glyph, xOffset, cursorY, scale) {
+  const polylines = [];
+  for (const stroke of glyph?.strokes || []) {
+    if (!stroke || stroke.length < 2) continue;
+    polylines.push(stroke.map(([x, y]) => [xOffset + x * scale, cursorY + (HERSHEY_CAP_HEIGHT - y) * scale]));
+  }
+  return polylines;
+}
+
+function hersheyTextToPolylines(text, options, box) {
+  const fontData = window.HERSHEY_SIMPLEX;
+  if (!fontData?.glyphs) {
+    throw new Error('Fonte Hershey não carregada.');
+  }
 
   const fontSize = Number(options.fontSize) || 12;
-  const lineHeight = options.lineHeight || fontSize * 1.35;
+  const scale = fontSize / HERSHEY_CAP_HEIGHT;
+  const lineHeight = options.lineHeight || fontSize * 1.55;
   const maxWidth = Math.max((box?.width || 0) - 0.5, fontSize);
+  const measureFn = (candidate) => hersheyMeasureTextWidth(fontData, candidate, fontSize);
   const flattened = [];
   const paragraphs = String(text || '').split(/\r?\n/);
   let cursorY = 0;
 
   for (const paragraph of paragraphs) {
-    const wrappedLines = wrapParagraph(font, paragraph, fontSize, maxWidth);
+    const wrappedLines = wrapParagraph(measureFn, paragraph, maxWidth);
     for (const line of wrappedLines) {
       if (!line) {
         cursorY += lineHeight;
         continue;
       }
-      const glyphPath = font.getPath(line, 0, cursorY, fontSize, { kerning: true });
-      const linePolylines = flattenOpenTypePath(glyphPath, options.flattenTolerance);
-      for (const poly of linePolylines) {
-        if (poly.length > 1) flattened.push(poly);
+
+      let xCursor = 0;
+      for (const ch of Array.from(line)) {
+        const glyph = fontData.glyphs[ch] || fontData.glyphs[ch.toUpperCase()] || fontData.glyphs['?'];
+        if (!glyph) {
+          xCursor += fontSize * 0.5;
+          continue;
+        }
+        flattened.push(...hersheyGlyphToPolylines(glyph, xCursor, cursorY, scale));
+        xCursor += (glyph.advance || fontSize * 0.7) * scale;
       }
       cursorY += lineHeight;
     }
@@ -306,6 +394,14 @@ async function textToPolylines(text, options, box) {
   }
 
   return flattened;
+}
+
+async function textToPolylines(text, options, box) {
+  const preset = getFontPresetMeta(options.fontPreset);
+  if (preset.kind === 'stroke') {
+    return hersheyTextToPolylines(text, options, box);
+  }
+  return outlineTextToPolylines(text, options, box);
 }
 
 function parsePointsList(pointsText) {
@@ -464,6 +560,7 @@ function gcodeFromPolylines(polylines, cfg, sourceName) {
 
 function readUiConfig() {
   const fontPreset = String(els.fontPreset?.value || DEFAULT_FONT_PRESET).trim();
+  const preset = getFontPresetMeta(fontPreset);
   return {
     paperWidth: Number(els.paperWidth.value || 210),
     paperHeight: Number(els.paperHeight.value || 297),
@@ -479,7 +576,7 @@ function readUiConfig() {
     penUpCommand: String(els.penUp.value || 'M5').trim(),
     penDownCommand: String(els.penDown.value || 'M3').trim(),
     fontPreset,
-    fontUrl: FONT_PRESETS[fontPreset] || FONT_PRESETS[DEFAULT_FONT_PRESET],
+    fontUrl: preset.fontUrl || null,
     fontSize: Number(els.fontSize.value || 12),
     lineHeight: els.lineHeight.value === '' ? null : Number(els.lineHeight.value),
     letterSpacing: Number(els.letterSpacing.value || 0),
@@ -639,6 +736,10 @@ function wireUi() {
   els.status = $('status');
   els.preview = $('preview');
   els.gcodeOutput = $('gcodeOutput');
+
+  if (!FONT_PRESETS[els.fontPreset.value]) {
+    els.fontPreset.value = DEFAULT_FONT_PRESET;
+  }
 
   els.tabs.forEach((tab) => {
     tab.addEventListener('click', () => showMode(tab.dataset.mode));
