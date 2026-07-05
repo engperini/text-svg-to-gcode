@@ -59,17 +59,18 @@ function polylineToSvgPath(poly) {
   return poly.map(([x, y], index) => `${index === 0 ? 'M' : 'L'} ${fmt(x)} ${fmt(y)}`).join(' ');
 }
 
-function polylinesToSvg(polylines) {
-  const bounds = boundsOfPolylines(polylines);
-  const width = Math.max(bounds?.width || 0, 1);
-  const height = Math.max(bounds?.height || 0, 1);
-  const pathData = polylines.map((poly) => polylineToSvgPath(poly)).join(' ');
-  const translateY = fmt(bounds?.height || 0);
+function polylinesToSvg(polylines, cfg) {
+  const transformed = cfg ? transformPolylines(polylines, cfg) : polylines;
+  const bounds = boundsOfPolylines(transformed);
+  const pad = 2;
+  const minX = (bounds?.minX ?? 0) - pad;
+  const minY = (bounds?.minY ?? 0) - pad;
+  const width = Math.max((bounds?.width ?? 0) + pad * 2, 1);
+  const height = Math.max((bounds?.height ?? 0) + pad * 2, 1);
+  const pathData = transformed.map((poly) => polylineToSvgPath(poly)).join(' ');
   return `
-    <svg xmlns="${SVG_NS}" viewBox="0 0 ${fmt(width)} ${fmt(height)}" fill="none" stroke="#111827" stroke-width="0.7" stroke-linecap="round" stroke-linejoin="round">
-      <g transform="translate(0 ${translateY}) scale(1 -1)">
-        <path d="${pathData}" />
-      </g>
+    <svg xmlns="${SVG_NS}" viewBox="${fmt(minX)} ${fmt(minY)} ${fmt(width)} ${fmt(height)}" fill="none" stroke="#111827" stroke-width="0.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="${pathData}" />
     </svg>`;
 }
 
@@ -463,7 +464,7 @@ async function generate() {
       sourceName = file.name;
     }
 
-    const svgPreview = polylinesToSvg(polylines);
+    const svgPreview = polylinesToSvg(polylines, cfg);
     const gcode = gcodeFromPolylines(polylines, cfg, sourceName);
 
     state.lastGcode = gcode;
