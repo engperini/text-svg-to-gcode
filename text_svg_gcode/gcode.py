@@ -116,13 +116,13 @@ def generate_gcode(
         if cfg.pen_down_command:
             lines.append(cfg.pen_down_command)
         if cfg.servo_dwell_ms:
-            lines.append(f"G4 P{int(cfg.servo_dwell_ms)}")
+            lines.append(f"G4 P{_fmt(cfg.servo_dwell_ms / 1000.0)}")
         for x, y in poly[1:]:
             lines.append(f"G1 X{_fmt(x)} Y{_fmt(y)} F{_fmt(cfg.feed_mm_min)}")
         if cfg.pen_up_command:
             lines.append(cfg.pen_up_command)
         if cfg.servo_dwell_ms:
-            lines.append(f"G4 P{int(cfg.servo_dwell_ms)}")
+            lines.append(f"G4 P{_fmt(cfg.servo_dwell_ms / 1000.0)}")
         lines.append("")
 
     lines.append("M2")

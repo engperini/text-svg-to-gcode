@@ -37,7 +37,7 @@ Os parâmetros ficam versionados no preset:
 - `pen_down_command`
 - `pen_up_angle`
 - `pen_down_angle`
-- `servo_dwell_ms`
+- `servo_dwell_ms` (convertido para `G4 P` em segundos no G-code gerado)
 
 Se o seu firmware usar outros comandos, basta ajustar o JSON do preset.
 
