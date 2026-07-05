@@ -1,5 +1,9 @@
 const SVG_NS = 'http://www.w3.org/2000/svg';
-const DEFAULT_FONT_URL = 'DejaVuSans.ttf';
+const FONT_PRESETS = {
+  'dejavu-sans': 'DejaVuSans.ttf',
+  'dejavu-sans-oblique': 'DejaVuSans-Oblique.ttf',
+};
+const DEFAULT_FONT_PRESET = 'dejavu-sans';
 
 const state = {
   lastGcode: '',
@@ -42,32 +46,81 @@ function boundsOfPolylines(polylines) {
   return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY };
 }
 
-function transformPolylines(polylines, cfg) {
+function getContentBox(cfg) {
+  const margin = Math.max(Number(cfg.margin) || 0, 0);
+  const originX = Number(cfg.originX) || 0;
+  const originY = Number(cfg.originY) || 0;
+  const paperWidth = Math.max(Number(cfg.paperWidth) || 210, 1);
+  const paperHeight = Math.max(Number(cfg.paperHeight) || 297, 1);
+  const x = Math.max(margin + originX, 0);
+  const y = Math.max(margin + originY, 0);
+  const width = Math.max(paperWidth - x - margin, 1);
+  const height = Math.max(paperHeight - y - margin, 1);
+  return { x, y, width, height, paperWidth, paperHeight, margin };
+}
+
+function normalizePolylines(polylines, cfg) {
   const bounds = boundsOfPolylines(polylines);
   if (!bounds) return [];
 
   return polylines.map((poly) => poly.map(([x, y]) => {
-    let nx = (x - bounds.minX) * cfg.scale;
-    let ny = (y - bounds.minY) * cfg.scale;
-    if (cfg.invertX) nx = bounds.width * cfg.scale - nx;
-    if (cfg.invertY) ny = bounds.height * cfg.scale - ny;
-    return [cfg.originX + nx, cfg.originY + ny];
+    let nx = (x - bounds.minX) * (Number(cfg.scale) || 1);
+    let ny = (y - bounds.minY) * (Number(cfg.scale) || 1);
+    if (cfg.invertX) nx = bounds.width * (Number(cfg.scale) || 1) - nx;
+    if (cfg.invertY) ny = bounds.height * (Number(cfg.scale) || 1) - ny;
+    return [nx, ny];
   }));
+}
+
+function fitPolylinesToBox(polylines, box) {
+  const bounds = boundsOfPolylines(polylines);
+  if (!bounds) return [];
+
+  const scale = Math.min(
+    box.width / Math.max(bounds.width, 0.0001),
+    box.height / Math.max(bounds.height, 0.0001),
+    1,
+  );
+  const offsetX = box.x;
+  const offsetY = box.y;
+
+  return polylines.map((poly) => poly.map(([x, y]) => [
+    offsetX + (x - bounds.minX) * scale,
+    offsetY + (y - bounds.minY) * scale,
+  ]));
+}
+
+function transformPolylines(polylines, cfg, box = null) {
+  const normalized = normalizePolylines(polylines, cfg);
+  if (!box) return normalized;
+  return fitPolylinesToBox(normalized, box);
 }
 
 function polylineToSvgPath(poly) {
   return poly.map(([x, y], index) => `${index === 0 ? 'M' : 'L'} ${fmt(x)} ${fmt(y)}`).join(' ');
 }
 
-function polylinesToSvg(polylines, cfg) {
-  const transformed = cfg ? transformPolylines(polylines, cfg) : polylines;
+function polylinesToSvg(polylines, cfg, box = null) {
+  const transformed = cfg ? transformPolylines(polylines, cfg, box) : polylines;
   const bounds = boundsOfPolylines(transformed);
+  const pathData = transformed.map((poly) => polylineToSvgPath(poly)).join(' ');
+
+  if (cfg && box) {
+    const pageWidth = Math.max(Number(cfg.paperWidth) || 210, 1);
+    const pageHeight = Math.max(Number(cfg.paperHeight) || 297, 1);
+    return `
+      <svg xmlns="${SVG_NS}" viewBox="0 0 ${fmt(pageWidth)} ${fmt(pageHeight)}" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="0" y="0" width="${fmt(pageWidth)}" height="${fmt(pageHeight)}" fill="#f8fafc" stroke="#cbd5e1" stroke-width="0.8" />
+        <rect x="${fmt(box.x)}" y="${fmt(box.y)}" width="${fmt(box.width)}" height="${fmt(box.height)}" fill="none" stroke="#94a3b8" stroke-dasharray="4 4" stroke-width="0.7" />
+        <path d="${pathData}" stroke="#111827" stroke-width="0.7" fill="none" />
+      </svg>`;
+  }
+
   const pad = 2;
   const minX = (bounds?.minX ?? 0) - pad;
   const minY = (bounds?.minY ?? 0) - pad;
   const width = Math.max((bounds?.width ?? 0) + pad * 2, 1);
   const height = Math.max((bounds?.height ?? 0) + pad * 2, 1);
-  const pathData = transformed.map((poly) => polylineToSvgPath(poly)).join(' ');
   return `
     <svg xmlns="${SVG_NS}" viewBox="${fmt(minX)} ${fmt(minY)} ${fmt(width)} ${fmt(height)}" fill="none" stroke="#111827" stroke-width="0.7" stroke-linecap="round" stroke-linejoin="round">
       <path d="${pathData}" />
@@ -154,7 +207,66 @@ function flattenOpenTypePath(path, tolerance = 0.35) {
   return polylines;
 }
 
-async function textToPolylines(text, options) {
+function measureTextWidth(font, text, fontSize) {
+  if (!text) return 0;
+  if (typeof font.getAdvanceWidth === 'function') {
+    return font.getAdvanceWidth(text, fontSize, { kerning: true });
+  }
+  const path = font.getPath(text, 0, 0, fontSize, { kerning: true });
+  const box = boundsOfPolylines(flattenOpenTypePath(path));
+  return box?.width || 0;
+}
+
+function breakLongWord(font, word, fontSize, maxWidth) {
+  const chars = Array.from(word || '');
+  const parts = [];
+  let current = '';
+  for (const ch of chars) {
+    const candidate = current + ch;
+    if (current && measureTextWidth(font, candidate, fontSize) > maxWidth) {
+      parts.push(current);
+      current = ch;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) parts.push(current);
+  return parts.length ? parts : [''];
+}
+
+function wrapParagraph(font, paragraph, fontSize, maxWidth) {
+  const words = String(paragraph || '').trim().split(/\s+/u).filter(Boolean);
+  if (!words.length) return [''];
+
+  const lines = [];
+  let current = '';
+
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (measureTextWidth(font, candidate, fontSize) <= maxWidth) {
+      current = candidate;
+      continue;
+    }
+
+    if (current) {
+      lines.push(current);
+      current = '';
+    }
+
+    if (measureTextWidth(font, word, fontSize) <= maxWidth) {
+      current = word;
+    } else {
+      const pieces = breakLongWord(font, word, fontSize, maxWidth);
+      if (pieces.length > 1) lines.push(...pieces.slice(0, -1));
+      current = pieces[pieces.length - 1] || '';
+    }
+  }
+
+  if (current) lines.push(current);
+  return lines.length ? lines : [''];
+}
+
+async function textToPolylines(text, options, box) {
   const font = await new Promise((resolve, reject) => {
     opentype.load(options.fontUrl, (err, loaded) => {
       if (err) reject(err);
@@ -162,30 +274,38 @@ async function textToPolylines(text, options) {
     });
   });
 
-  const lines = String(text || '').split(/\r?\n/);
-  const lineHeight = options.lineHeight || options.fontSize * 1.35;
-  const spacing = options.letterSpacing || 0;
-  const polylines = [];
+  const fontSize = Number(options.fontSize) || 12;
+  const lineHeight = options.lineHeight || fontSize * 1.35;
+  const maxWidth = Math.max((box?.width || 0) - 0.5, fontSize);
+  const flattened = [];
+  const paragraphs = String(text || '').split(/\r?\n/);
   let cursorY = 0;
 
-  for (const line of lines) {
-    const glyphPath = font.getPath(line, 0, cursorY, options.fontSize, { kerning: true });
-    const linePolylines = flattenOpenTypePath(glyphPath, options.flattenTolerance);
-    for (const poly of linePolylines) {
-      if (poly.length > 1) polylines.push(poly);
+  for (const paragraph of paragraphs) {
+    const wrappedLines = wrapParagraph(font, paragraph, fontSize, maxWidth);
+    for (const line of wrappedLines) {
+      if (!line) {
+        cursorY += lineHeight;
+        continue;
+      }
+      const glyphPath = font.getPath(line, 0, cursorY, fontSize, { kerning: true });
+      const linePolylines = flattenOpenTypePath(glyphPath, options.flattenTolerance);
+      for (const poly of linePolylines) {
+        if (poly.length > 1) flattened.push(poly);
+      }
+      cursorY += lineHeight;
     }
-    cursorY += lineHeight;
   }
 
-  if (!polylines.length) {
+  if (!flattened.length) {
     throw new Error('O texto gerou zero trajetórias.');
   }
 
-  if (spacing !== 0) {
-    return polylines.map((poly) => poly.map(([x, y]) => [x + spacing, y]));
+  if (Number(options.letterSpacing) !== 0) {
+    return flattened.map((poly) => poly.map(([x, y]) => [x + Number(options.letterSpacing), y]));
   }
 
-  return polylines;
+  return flattened;
 }
 
 function parsePointsList(pointsText) {
@@ -305,7 +425,8 @@ function svgStringToPolylines(svgText, tolerance = 0.35) {
 }
 
 function gcodeFromPolylines(polylines, cfg, sourceName) {
-  const transformed = transformPolylines(polylines, cfg);
+  const pageBox = getContentBox(cfg);
+  const transformed = transformPolylines(polylines, cfg, pageBox);
   const bounds = boundsOfPolylines(transformed);
   const lines = [];
   lines.push('; generated by text-svg-to-gcode');
@@ -314,8 +435,6 @@ function gcodeFromPolylines(polylines, cfg, sourceName) {
   lines.push('; units: mm');
   lines.push(`; pen_up_command: ${cfg.penUpCommand}`);
   lines.push(`; pen_down_command: ${cfg.penDownCommand}`);
-  lines.push(`; pen_up_angle: ${cfg.penUpAngle}`);
-  lines.push(`; pen_down_angle: ${cfg.penDownAngle}`);
   if (bounds) {
     lines.push(`; bounds_mm: min=(${fmt(bounds.minX)}, ${fmt(bounds.minY)}) max=(${fmt(bounds.maxX)}, ${fmt(bounds.maxY)})`);
   }
@@ -344,7 +463,11 @@ function gcodeFromPolylines(polylines, cfg, sourceName) {
 }
 
 function readUiConfig() {
+  const fontPreset = String(els.fontPreset?.value || DEFAULT_FONT_PRESET).trim();
   return {
+    paperWidth: Number(els.paperWidth.value || 210),
+    paperHeight: Number(els.paperHeight.value || 297),
+    margin: Number(els.pageMargin.value || 10),
     originX: Number(els.originX.value || 0),
     originY: Number(els.originY.value || 0),
     scale: Number(els.scale.value || 1),
@@ -355,9 +478,8 @@ function readUiConfig() {
     dwell: Number(els.dwell.value || 120),
     penUpCommand: String(els.penUp.value || 'M5').trim(),
     penDownCommand: String(els.penDown.value || 'M3').trim(),
-    penUpAngle: Number(els.upAngle.value || 30),
-    penDownAngle: Number(els.downAngle.value || 70),
-    fontUrl: String(els.fontUrl.value || DEFAULT_FONT_URL).trim(),
+    fontPreset,
+    fontUrl: FONT_PRESETS[fontPreset] || FONT_PRESETS[DEFAULT_FONT_PRESET],
     fontSize: Number(els.fontSize.value || 12),
     lineHeight: els.lineHeight.value === '' ? null : Number(els.lineHeight.value),
     letterSpacing: Number(els.letterSpacing.value || 0),
@@ -445,10 +567,11 @@ async function generate() {
   try {
     let polylines = [];
     let sourceName = mode;
+    const pageBox = getContentBox(cfg);
 
     if (mode === 'text') {
       const text = els.textInput.value || '';
-      polylines = await textToPolylines(text, cfg);
+      polylines = await textToPolylines(text, cfg, pageBox);
       sourceName = 'text';
     } else if (mode === 'svg') {
       const svgText = els.svgInput.value || '';
@@ -464,7 +587,7 @@ async function generate() {
       sourceName = file.name;
     }
 
-    const svgPreview = polylinesToSvg(polylines, cfg);
+    const svgPreview = polylinesToSvg(polylines, cfg, pageBox);
     const gcode = gcodeFromPolylines(polylines, cfg, sourceName);
 
     state.lastGcode = gcode;
@@ -493,7 +616,10 @@ function wireUi() {
   els.svgInput = $('svgInput');
   els.svgFile = $('svgFile');
   els.imageFile = $('imageFile');
-  els.fontUrl = $('fontUrl');
+  els.fontPreset = $('fontPreset');
+  els.paperWidth = $('paperWidth');
+  els.paperHeight = $('paperHeight');
+  els.pageMargin = $('pageMargin');
   els.originX = $('originX');
   els.originY = $('originY');
   els.scale = $('scale');
@@ -502,8 +628,6 @@ function wireUi() {
   els.dwell = $('dwell');
   els.penUp = $('penUp');
   els.penDown = $('penDown');
-  els.upAngle = $('upAngle');
-  els.downAngle = $('downAngle');
   els.fontSize = $('fontSize');
   els.lineHeight = $('lineHeight');
   els.letterSpacing = $('letterSpacing');

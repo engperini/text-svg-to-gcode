@@ -48,9 +48,16 @@ Se o seu firmware usar outros comandos, basta ajustar o JSON do preset.
    - **Texto**: cole ou digite o conteúdo.
    - **SVG**: cole o SVG ou envie um arquivo.
    - **Imagem**: carregue PNG/JPG/WebP para vetorizar no navegador.
-3. Ajuste os parâmetros da máquina.
-4. Clique em **Gerar G-code**.
-5. Use **Baixar .gcode** para salvar o arquivo final.
+3. Ajuste os parâmetros da folha e da máquina:
+   - tamanho da folha
+   - margem
+   - origem
+   - escala
+   - feed/travel
+   - tempo de espera do servo
+4. Se estiver usando texto, escolha a fonte no menu suspenso.
+5. Clique em **Gerar G-code**.
+6. Use **Baixar .gcode** para salvar o arquivo final.
 
 ## Como usar localmente
 
@@ -100,4 +107,5 @@ python -m text_svg_gcode svg \
 - O caminho de fonte padrão usado nos exemplos é `DejaVu Sans`.
 - O projeto foi pensado para plotter DIY, mas o preset também serve para outras CNCs com servo.
 - O G-code gerado usa `G21`, `G90`, `M3` e `M5` por padrão.
+- A interface web usa folha A4 em modo retrato como padrão e ajusta a arte para caber na área útil.
 - Para a interface web, habilite GitHub Pages no repositório e use a publicação do diretório `docs/`.

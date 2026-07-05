@@ -40,12 +40,13 @@
               Texto
               <textarea id="textInput" rows="10" placeholder="Digite ou cole o texto aqui">HELLO ESP32</textarea>
             </label>
-            <div class="row">
-              <label>
-                Fonte TTF/OTF (URL)
-                <input id="fontUrl" type="url" value="DejaVuSans.ttf" />
-              </label>
-            </div>
+            <label>
+              Fonte
+              <select id="fontPreset">
+                <option value="dejavu-sans" selected>DejaVu Sans</option>
+                <option value="dejavu-sans-oblique">DejaVu Sans Oblique</option>
+              </select>
+            </label>
           </section>
 
           <section class="card mode-panel hidden" data-panel="svg">
@@ -72,18 +73,25 @@
           </section>
 
           <section class="card">
+            <h2>Configuração da folha</h2>
+            <div class="two-col">
+              <label>Folha largura (mm) <input id="paperWidth" type="number" step="0.1" value="210" /></label>
+              <label>Folha altura (mm) <input id="paperHeight" type="number" step="0.1" value="297" /></label>
+              <label>Margem (mm) <input id="pageMargin" type="number" step="0.1" value="10" /></label>
+              <label>Origem X (mm) <input id="originX" type="number" step="0.1" value="0" /></label>
+              <label>Origem Y (mm) <input id="originY" type="number" step="0.1" value="0" /></label>
+            </div>
+          </section>
+
+          <section class="card">
             <h2>Configuração da máquina</h2>
             <div class="two-col">
-              <label>Origin X (mm) <input id="originX" type="number" step="0.1" value="0" /></label>
-              <label>Origin Y (mm) <input id="originY" type="number" step="0.1" value="0" /></label>
               <label>Scale <input id="scale" type="number" step="0.01" value="1" /></label>
               <label>Feed (mm/min) <input id="feed" type="number" step="1" value="1200" /></label>
               <label>Travel (mm/min) <input id="travel" type="number" step="1" value="3000" /></label>
               <label>Servo dwell (ms) <input id="dwell" type="number" step="1" value="120" /></label>
               <label>Pen up command <input id="penUp" type="text" value="M5" /></label>
               <label>Pen down command <input id="penDown" type="text" value="M3" /></label>
-              <label>Pen up angle <input id="upAngle" type="number" step="1" value="30" /></label>
-              <label>Pen down angle <input id="downAngle" type="number" step="1" value="70" /></label>
               <label>Font size (mm) <input id="fontSize" type="number" step="0.1" value="12" /></label>
               <label>Line height (mm) <input id="lineHeight" type="number" step="0.1" placeholder="auto" /></label>
               <label>Letter spacing (mm) <input id="letterSpacing" type="number" step="0.1" value="0" /></label>
@@ -116,7 +124,7 @@
         <p>
           Dica: depois de publicar o repositório com GitHub Pages, esta página vira a interface de entrada.
         </p>
-        <p><strong>Versão:</strong> 0bc57ff</p>
+        <p><strong>Versão:</strong> v0.2.0</p>
       </footer>
     </main>
   </body>
