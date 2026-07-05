@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>text-svg-to-gcode</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/opentype.js/1.3.4/opentype.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/imagetracerjs@1.2.6/imagetracer_v1.2.6.min.js"></script>
+    <script defer src="app.js"></script>
+  </head>
+  <body>
+    <main class="app">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">GitHub Pages · texto, SVG e imagem → G-code</p>
+          <h1>Gerador web de G-code</h1>
+          <p class="subtitle">
+            Cole texto, envie um SVG ou carregue uma imagem e baixe o arquivo
+            <code>.gcode</code> sem instalar nada localmente.
+          </p>
+        </div>
+        <div class="hero-note">
+          <strong>Fluxo:</strong> input no navegador → pré-visualização SVG →
+          download do G-code.
+        </div>
+      </header>
+
+      <section class="panel">
+        <div class="tabs" role="tablist" aria-label="Tipo de entrada">
+          <button class="tab active" data-mode="text" type="button">Texto</button>
+          <button class="tab" data-mode="svg" type="button">SVG</button>
+          <button class="tab" data-mode="image" type="button">Imagem</button>
+        </div>
+
+        <div class="grid">
+          <section class="card mode-panel" data-panel="text">
+            <h2>Entrada de texto</h2>
+            <label>
+              Texto
+              <textarea id="textInput" rows="10" placeholder="Digite ou cole o texto aqui">HELLO ESP32</textarea>
+            </label>
+            <div class="row">
+              <label>
+                Fonte TTF/OTF (URL)
+                <input id="fontUrl" type="url" value="DejaVuSans.ttf" />
+              </label>
+            </div>
+          </section>
+
+          <section class="card mode-panel hidden" data-panel="svg">
+            <h2>Entrada SVG</h2>
+            <label>
+              Cole o SVG
+              <textarea id="svgInput" rows="10" placeholder="Cole o conteúdo do SVG aqui"></textarea>
+            </label>
+            <label class="filebox">
+              <span>ou carregue um arquivo .svg</span>
+              <input id="svgFile" type="file" accept=".svg,image/svg+xml" />
+            </label>
+          </section>
+
+          <section class="card mode-panel hidden" data-panel="image">
+            <h2>Entrada de imagem</h2>
+            <label class="filebox">
+              <span>Carregar imagem (PNG/JPG/WebP)</span>
+              <input id="imageFile" type="file" accept="image/*" />
+            </label>
+            <p class="hint">
+              A imagem é vetorizada no navegador antes de virar G-code.
+            </p>
+          </section>
+
+          <section class="card">
+            <h2>Configuração da máquina</h2>
+            <div class="two-col">
+              <label>Origin X (mm) <input id="originX" type="number" step="0.1" value="0" /></label>
+              <label>Origin Y (mm) <input id="originY" type="number" step="0.1" value="0" /></label>
+              <label>Scale <input id="scale" type="number" step="0.01" value="1" /></label>
+              <label>Feed (mm/min) <input id="feed" type="number" step="1" value="1200" /></label>
+              <label>Travel (mm/min) <input id="travel" type="number" step="1" value="3000" /></label>
+              <label>Servo dwell (ms) <input id="dwell" type="number" step="1" value="120" /></label>
+              <label>Pen up command <input id="penUp" type="text" value="M5" /></label>
+              <label>Pen down command <input id="penDown" type="text" value="M3" /></label>
+              <label>Pen up angle <input id="upAngle" type="number" step="1" value="30" /></label>
+              <label>Pen down angle <input id="downAngle" type="number" step="1" value="70" /></label>
+              <label>Font size (mm) <input id="fontSize" type="number" step="0.1" value="12" /></label>
+              <label>Line height (mm) <input id="lineHeight" type="number" step="0.1" placeholder="auto" /></label>
+              <label>Letter spacing (mm) <input id="letterSpacing" type="number" step="0.1" value="0" /></label>
+              <label>Flatten tolerance (mm) <input id="flattenTolerance" type="number" step="0.01" value="0.35" /></label>
+              <label class="check"><input id="invertX" type="checkbox" /> Inverter X</label>
+              <label class="check"><input id="invertY" type="checkbox" /> Inverter Y</label>
+            </div>
+          </section>
+        </div>
+
+        <div class="actions">
+          <button id="generateBtn" class="primary" type="button">Gerar G-code</button>
+          <button id="downloadBtn" type="button" disabled>Baixar .gcode</button>
+          <span id="status" class="status">Pronto.</span>
+        </div>
+      </section>
+
+      <section class="panel output-grid">
+        <article class="card">
+          <h2>Pré-visualização SVG</h2>
+          <div id="preview" class="preview"></div>
+        </article>
+        <article class="card">
+          <h2>Saída G-code</h2>
+          <textarea id="gcodeOutput" rows="24" readonly placeholder="O G-code vai aparecer aqui"></textarea>
+        </article>
+      </section>
+
+      <footer class="footer">
+        <p>
+          Dica: depois de publicar o repositório com GitHub Pages, esta página vira a interface de entrada.
+        </p>
+      </footer>
+    </main>
+  </body>
+</html>

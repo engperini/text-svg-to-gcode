@@ -1,77 +1,103 @@
 # text-svg-to-gcode
 
-        Gerador público de G-code para *plotter/CNC* a partir de **texto** ou **SVG**.
+Gerador público de G-code para *plotter/CNC* a partir de **texto**, **SVG** ou **imagem**.
 
-        O foco deste repositório é bem direto:
+O foco deste repositório é bem direto:
 
-        - entrada em texto com fonte fixa
-        - entrada em SVG vetorial
-        - saída em G-code pronta para automação
-        - presets versionados para máquina, servo e parâmetros de desenho
+- entrada em texto com fonte fixa
+- entrada em SVG vetorial
+- entrada em imagem com vetorização no navegador
+- saída em G-code pronta para automação
+- presets versionados para máquina, servo e parâmetros de desenho
+- interface web para usar direto no GitHub Pages
 
-        ## O que ele faz
+## O que ele faz
 
-        - converte texto em vetores usando uma fonte TTF fixa
-        - converte SVG em trajetórias
-        - gera G-code com comandos de caneta/servo configuráveis
-        - exporta também um SVG intermediário para inspeção
-        - roda localmente ou via GitHub Actions
+- converte texto em vetores usando uma fonte TTF fixa
+- converte SVG em trajetórias
+- vetoriza imagem no navegador antes de gerar G-code
+- gera G-code com comandos de caneta/servo configuráveis
+- exporta também um SVG intermediário para inspeção
+- roda localmente, via GitHub Actions ou pelo navegador no GitHub Pages
 
-        ## Estrutura
+## Estrutura
 
-        - `text_svg_gcode/` — código principal
-        - `presets/default_machine.json` — parâmetros da máquina/servo
-        - `examples/` — entradas de exemplo
-        - `.github/workflows/generate.yml` — automação no GitHub Actions
+- `text_svg_gcode/` — código principal da CLI
+- `presets/default_machine.json` — parâmetros da máquina/servo
+- `examples/` — entradas de exemplo
+- `docs/` — interface web para GitHub Pages
+- `.github/workflows/generate.yml` — automação no GitHub Actions
+- `.github/workflows/pages.yml` — publicação da interface web no GitHub Pages
 
-        ## Configuração dos parâmetros do servo
+## Configuração dos parâmetros do servo
 
-        Os parâmetros ficam versionados no preset:
+Os parâmetros ficam versionados no preset:
 
-        - `pen_up_command`
-        - `pen_down_command`
-        - `pen_up_angle`
-        - `pen_down_angle`
-        - `servo_dwell_ms`
+- `pen_up_command`
+- `pen_down_command`
+- `pen_up_angle`
+- `pen_down_angle`
+- `servo_dwell_ms`
 
-        Se o seu firmware usar outros comandos, basta ajustar o JSON do preset.
+Se o seu firmware usar outros comandos, basta ajustar o JSON do preset.
 
-        ## Como usar localmente
+## Como usar no GitHub Pages
 
-        1. Instale as dependências:
+1. Depois de publicar este repositório, abra a página em GitHub Pages.
+2. Escolha a entrada:
+   - **Texto**: cole ou digite o conteúdo.
+   - **SVG**: cole o SVG ou envie um arquivo.
+   - **Imagem**: carregue PNG/JPG/WebP para vetorizar no navegador.
+3. Ajuste os parâmetros da máquina.
+4. Clique em **Gerar G-code**.
+5. Use **Baixar .gcode** para salvar o arquivo final.
 
-        ```bash
-        python3 -m venv .venv
-        . .venv/bin/activate
-        pip install -r requirements.txt
-        ```
+## Como usar localmente
 
-        2. Gere G-code a partir de texto:
+1. Instale as dependências:
 
-        ```bash
-        python -m text_svg_gcode text           --text "HELLO
-ESP32"           --preset presets/default_machine.json           --output dist/hello.gcode           --svg-output dist/hello.svg
-        ```
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r requirements.txt
+```
 
-        3. Gere G-code a partir de SVG:
+2. Gere G-code a partir de texto:
 
-        ```bash
-        python -m text_svg_gcode svg           --input examples/sample.svg           --preset presets/default_machine.json           --output dist/sample.gcode           --svg-output dist/sample.svg
-        ```
+```bash
+python -m text_svg_gcode text \
+  --text "HELLO\nESP32" \
+  --preset presets/default_machine.json \
+  --output dist/hello.gcode \
+  --svg-output dist/hello.svg
+```
 
-        ## GitHub Actions
+3. Gere G-code a partir de SVG:
 
-        O workflow `Generate G-code` permite disparar a conversão por `workflow_dispatch`.
-        Ele publica o arquivo final como artifact.
+```bash
+python -m text_svg_gcode svg \
+  --input examples/sample.svg \
+  --preset presets/default_machine.json \
+  --output dist/sample.gcode \
+  --svg-output dist/sample.svg
+```
 
-        ## Dependências
+## GitHub Actions
 
-        - Python 3.11+
-        - `fonttools`
-        - `svgpathtools`
+- O workflow `Generate G-code` permite disparar a conversão por `workflow_dispatch`.
+- O workflow `Deploy GitHub Pages` publica a interface web do diretório `docs/`.
+- O arquivo final pode ser baixado como artifact no Actions.
 
-        ## Observações
+## Dependências
 
-        - O caminho de fonte padrão usado nos exemplos é `DejaVu Sans`.
-        - O projeto foi pensado para plotter DIY, mas o preset também serve para outras CNCs com servo.
-        - O G-code gerado usa `G21`, `G90`, `M3` e `M5` por padrão.
+- Python 3.11+
+- `fonttools`
+- `svgpathtools`
+- navegador moderno para usar a interface web no GitHub Pages
+
+## Observações
+
+- O caminho de fonte padrão usado nos exemplos é `DejaVu Sans`.
+- O projeto foi pensado para plotter DIY, mas o preset também serve para outras CNCs com servo.
+- O G-code gerado usa `G21`, `G90`, `M3` e `M5` por padrão.
+- Para a interface web, habilite GitHub Pages no repositório e use a publicação do diretório `docs/`.
