@@ -1,0 +1,61 @@
+name: Generate G-code
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: text or svg
+        required: true
+        default: text
+      text:
+        description: Input text when mode=text
+        required: false
+        default: HELLO
+ESP32
+      input_path:
+        description: Input SVG path when mode=svg
+        required: false
+        default: examples/sample.svg
+      output_name:
+        description: Base filename for artifacts
+        required: true
+        default: generated
+      preset:
+        description: Machine preset path
+        required: false
+        default: presets/default_machine.json
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Generate outputs
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          TEXT: ${{ github.event.inputs.text }}
+          INPUT_PATH: ${{ github.event.inputs.input_path }}
+          OUTPUT_NAME: ${{ github.event.inputs.output_name }}
+          PRESET: ${{ github.event.inputs.preset }}
+        run: |
+          mkdir -p dist
+          if [ "$MODE" = "text" ]; then
+            python -m text_svg_gcode text                       --text "$TEXT"                       --preset "$PRESET"                       --output "dist/${OUTPUT_NAME}.gcode"                       --svg-output "dist/${OUTPUT_NAME}.svg"
+          else
+            python -m text_svg_gcode svg                       --input "$INPUT_PATH"                       --preset "$PRESET"                       --output "dist/${OUTPUT_NAME}.gcode"                       --svg-output "dist/${OUTPUT_NAME}.svg"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gcode-output
+          path: dist/

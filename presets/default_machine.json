@@ -1,0 +1,21 @@
+{
+  "name": "default-plotter",
+  "units": "mm",
+  "origin_x_mm": 0,
+  "origin_y_mm": 0,
+  "scale": 1.0,
+  "invert_x": false,
+  "invert_y": false,
+  "feed_mm_min": 1200,
+  "travel_mm_min": 3000,
+  "servo_dwell_ms": 120,
+  "pen_up_command": "M5",
+  "pen_down_command": "M3",
+  "pen_up_angle": 30,
+  "pen_down_angle": 70,
+  "letter_spacing_mm": 0.8,
+  "line_height_mm": 18,
+  "flatten_tolerance_mm": 0.35,
+  "font_size_mm": 12,
+  "font_path": "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+}
